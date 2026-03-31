@@ -1,33 +1,21 @@
-# Sistema Seguro de Cadastro e Histórico
+# Cadastro
 
-Projeto PHP + MySQL com validação no front-end e no back-end, armazenamento seguro e exibição de histórico na mesma página.
+> Sistema seguro de registro e histórico — PHP · MySQL · PDO
 
-## Objetivo
+---
 
-Capturar, validar e armazenar os seguintes dados:
+## Visão Geral
 
-- Nome
-- E-mail
-- Senha
-- Mensagem
+Aplicação web para captura, validação e armazenamento seguro de registros. O histórico é exibido na mesma página do formulário, sem redirecionamentos.
 
-Regras principais:
+**Dados coletados:** Nome · E-mail · Senha · Mensagem
 
-- validação completa no front-end
-- validação completa no back-end em PHP
-- uso de `input type="email"` e `input type="password"`
-- mensagem com limite de 250 caracteres
-- proteção contra SQL Injection com `PDO` e prepared statements
-- senha armazenada com `password_hash`
-- mensagem armazenada criptografada
-- histórico carregado no mesmo formulário
-- tratamento explícito de erros
-- organização por pastas
+---
 
-## Estrutura do projeto
+## Estrutura
 
-```text
-secure_contact_project/
+```
+cadastro/
 ├── app/
 │   ├── config/
 │   │   └── database.php
@@ -40,111 +28,124 @@ secure_contact_project/
 │       └── app.js
 ├── sql/
 │   └── schema.sql
-├── index.php
-└── README.md
+└── index.php
 ```
+
+---
 
 ## Requisitos
 
-- Windows
-- XAMPP
-- MySQL Workbench
-- PHP 8 ou superior
-- MySQL/MariaDB compatível com `utf8mb4`
+| Dependência | Versão mínima |
+|-------------|---------------|
+| PHP         | 8.0           |
+| MySQL       | 5.7 / MariaDB compatível com `utf8mb4` |
+| XAMPP       | qualquer versão estável |
 
-## Instalação no Windows com XAMPP
+---
 
-1. Copie a pasta do projeto para `C:\xampp\htdocs\secure_contact_project`.
-2. Abra o XAMPP Control Panel e inicie `Apache` e `MySQL`.
-3. Abra o MySQL Workbench.
-4. Importe ou execute o arquivo `sql/schema.sql`.
-5. Confirme a criação do banco `secure_contact_system` e da tabela `submissions`.
-6. Revise o arquivo `app/config/database.php` e, se necessário, ajuste usuário, senha ou nome do banco.
-7. Abra no navegador:
-   `http://localhost/secure_contact_project/index.php`
+## Instalação
 
-## Configuração do banco
+**1. Copie o projeto**
 
-O arquivo `sql/schema.sql` cria:
+```
+C:\xampp\htdocs\cadastro\
+```
 
-- banco de dados `secure_contact_system`
-- tabela `submissions`
+**2. Inicie o XAMPP**
 
-Campos principais:
+Ative os módulos **Apache** e **MySQL** no painel de controle.
 
-- `name`
-- `email`
-- `password_hash`
-- `message_ciphertext`
-- `message_iv`
-- `created_at`
+**3. Importe o banco de dados**
 
-## Segurança aplicada
+Abra o MySQL Workbench e execute:
 
-- `PDO` com `prepare` e `execute`
-- `htmlspecialchars` na saída
-- token `CSRF`
-- `password_hash` para a senha
-- criptografia da mensagem antes de salvar
-- validação forte de nome, e-mail, senha e mensagem
-- bloqueio de carga útil inválida no front e no back
+```
+sql/schema.sql
+```
 
-## Regras de validação
+Isso cria o banco `secure_contact_system` e a tabela `submissions`.
+
+**4. Revise a configuração**
+
+Abra `app/config/database.php` e confirme as credenciais:
+
+```php
+'host'     => 'localhost',
+'dbname'   => 'secure_contact_system',
+'user'     => 'root',
+'password' => '',
+```
+
+**5. Acesse no navegador**
+
+```
+http://localhost/cadastro/index.php
+```
+
+---
+
+## Segurança
+
+| Camada        | Recurso aplicado                                  |
+|---------------|---------------------------------------------------|
+| Banco de dados| PDO com `prepare()` e `execute()` — sem SQL Injection |
+| Senha         | `password_hash()` com BCRYPT                      |
+| Mensagem      | Criptografia simétrica antes de salvar            |
+| Saída HTML    | `htmlspecialchars()` em todos os dados exibidos   |
+| Formulário    | Token CSRF por sessão                             |
+| Validação     | Front-end (JS) e back-end (PHP) — obrigatória nas duas camadas |
+
+---
+
+## Regras de Validação
 
 ### Nome
-
-- obrigatório
-- mínimo de 2 caracteres
-- máximo de 100 caracteres
-- apenas letras, espaços, hífen e apóstrofo
+- Obrigatório · 2–100 caracteres
+- Apenas letras, espaços, hífen e apóstrofo
 
 ### E-mail
-
-- obrigatório
-- formato de e-mail válido
-- máximo de 255 caracteres
+- Obrigatório · formato válido · máximo de 255 caracteres
 
 ### Senha
-
-- obrigatório
-- mínimo de 8 caracteres
-- máximo de 64 caracteres
-- ao menos uma letra minúscula
-- ao menos uma letra maiúscula
-- ao menos um número
-- ao menos um caractere especial
+- Obrigatório · 8–64 caracteres
+- Deve conter: letra minúscula · letra maiúscula · número · caractere especial
 
 ### Mensagem
+- Obrigatório · 3–250 caracteres
 
-- obrigatório
-- mínimo de 3 caracteres
-- máximo de 250 caracteres
+---
 
-## Execução
+## Schema do Banco
 
-1. Abra o XAMPP.
-2. Inicie Apache e MySQL.
-3. Verifique se o banco foi importado.
-4. Acesse a página principal.
-5. Envie um registro válido.
-6. O histórico aparecerá abaixo do formulário na mesma página.
+```sql
+CREATE TABLE submissions (
+  id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name              VARCHAR(100)  NOT NULL,
+  email             VARCHAR(255)  NOT NULL,
+  password_hash     VARCHAR(255)  NOT NULL,
+  message_ciphertext TEXT         NOT NULL,
+  message_iv        VARCHAR(64)   NOT NULL,
+  created_at        TIMESTAMP     DEFAULT CURRENT_TIMESTAMP
+);
+```
 
-## Organização para Git
+---
 
-Estrutura recomendada de commit:
+## Git
 
 ```bash
 git init
 git add .
-git commit -m "Versão inicial do sistema seguro"
+git commit -m "versão inicial"
 ```
+
+---
 
 ## Observações
 
-- O projeto foi pensado para execução local em ambiente acadêmico.
-- Caso o MySQL esteja com usuário ou senha diferentes, ajuste o arquivo `app/config/database.php`.
-- A chave de criptografia deve ser substituída por uma string longa e aleatória antes de uso fora do ambiente de testes.
+- A chave de criptografia em `functions.php` deve ser substituída por uma string longa e aleatória antes de qualquer uso fora de ambiente local.
+- Projeto desenvolvido para fins acadêmicos.
 
-## Créditos
+---
 
-Desenvolvido por João Alves e Fabio.
+*Desenvolvido por João Alves e Fabio*

@@ -1,0 +1,8 @@
+# Dependências e arquivos temporários
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+vendor/
+node_modules/

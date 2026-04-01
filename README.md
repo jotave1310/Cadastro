@@ -111,7 +111,7 @@ http://localhost/cadastro/index.php
 - Deve conter: letra minúscula · letra maiúscula · número · caractere especial
 
 ### Mensagem
-- Obrigatório · 3–250 caracteres
+- Obrigatório · 3–250 caracteres.
 
 ---
 

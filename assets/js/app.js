@@ -291,3 +291,93 @@
   });
 
 })();
+
+/* ── Delete Modal ──────────────────────────────────────────────────── */
+function openDeleteModal(btn) {
+  const id   = btn.dataset.id;
+  const name = btn.dataset.name;
+  document.getElementById('deleteRecordId').value = id;
+  document.getElementById('deleteModalName').textContent = name;
+  document.getElementById('deleteStep1').classList.remove('hidden');
+  document.getElementById('deleteStep2').classList.add('hidden');
+  const modal = document.getElementById('deleteModal');
+  modal.setAttribute('aria-hidden', 'false');
+  modal.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function deleteStep2() {
+  document.getElementById('deleteStep1').classList.add('hidden');
+  document.getElementById('deleteStep2').classList.remove('hidden');
+}
+
+function closeDeleteModal() {
+  const modal = document.getElementById('deleteModal');
+  modal.setAttribute('aria-hidden', 'true');
+  modal.classList.remove('active');
+  document.body.style.overflow = '';
+  setTimeout(() => {
+    document.getElementById('deleteStep1').classList.remove('hidden');
+    document.getElementById('deleteStep2').classList.add('hidden');
+  }, 300);
+}
+
+/* ── Edit Modal ────────────────────────────────────────────────────── */
+function openEditModal(btn) {
+  openEditModalWithData(
+    btn.dataset.id,
+    btn.dataset.name,
+    btn.dataset.email,
+    btn.dataset.message
+  );
+}
+
+function openEditModalWithData(id, name, email, message) {
+  document.getElementById('editRecordId').value    = id;
+  document.getElementById('edit_name').value       = name;
+  document.getElementById('edit_email').value      = email;
+  document.getElementById('edit_message').value    = message;
+  updateEditCounter();
+  const modal = document.getElementById('editModal');
+  modal.setAttribute('aria-hidden', 'false');
+  modal.classList.add('active');
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => document.getElementById('edit_name').focus(), 100);
+}
+
+function closeEditModal() {
+  const modal = document.getElementById('editModal');
+  modal.setAttribute('aria-hidden', 'true');
+  modal.classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+function updateEditCounter() {
+  const ta  = document.getElementById('edit_message');
+  const cnt = document.getElementById('editMessageCounter');
+  if (!ta || !cnt) return;
+  const len = ta.value.length;
+  cnt.textContent = len + '/250 caracteres';
+  cnt.style.color = (250 - len) < 20 ? '#ff7b90' : '';
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  const ta = document.getElementById('edit_message');
+  if (ta) ta.addEventListener('input', updateEditCounter);
+
+  /* Close modals on overlay click */
+  document.getElementById('deleteModal')?.addEventListener('click', function(e) {
+    if (e.target === this) closeDeleteModal();
+  });
+  document.getElementById('editModal')?.addEventListener('click', function(e) {
+    if (e.target === this) closeEditModal();
+  });
+
+  /* Close modals on Escape */
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      closeDeleteModal();
+      closeEditModal();
+    }
+  });
+});

@@ -5,7 +5,7 @@ const APP_DB_HOST = '127.0.0.1';
 const APP_DB_PORT = '3306';
 const APP_DB_NAME = 'secure_contact_system';
 const APP_DB_USER = 'root';
-const APP_DB_PASS = '';
+const APP_DB_PASS = '&tec77@info!';
 const APP_DB_CHARSET = 'utf8mb4';
 
 // Alterar para uma chave longa e aleatória antes de colocar em produção.

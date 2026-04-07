@@ -20,6 +20,9 @@ $old = [
     'password' => '',
     'message' => '',
 ];
+$editErrors   = [];
+$editModalOpen = 0;
+$editModalData = ['id' => 0, 'name' => '', 'email' => '', 'message' => ''];
 
 if (!isset($_SESSION['csrf_token'])) {
     generate_csrf_token();
@@ -32,7 +35,79 @@ try {
     $pdo = null;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// ── Handle DELETE action ────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete') {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? null)) {
+        $generalError = 'Sessão de segurança inválida. Atualize a página e tente novamente.';
+    } elseif ($pdo instanceof PDO) {
+        $deleteId = (int) ($_POST['record_id'] ?? 0);
+        if ($deleteId > 0) {
+            try {
+                $stmt = $pdo->prepare('DELETE FROM submissions WHERE id = :id');
+                $stmt->execute([':id' => $deleteId]);
+                $successMessage = 'Registro #' . $deleteId . ' excluído com sucesso.';
+            } catch (Throwable $e) {
+                $generalError = 'Erro ao excluir registro: ' . $e->getMessage();
+            }
+        }
+    }
+}
+
+// ── Handle EDIT action ──────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit') {
+    if (!validate_csrf_token($_POST['csrf_token'] ?? null)) {
+        $generalError = 'Sessão de segurança inválida. Atualize a página e tente novamente.';
+    } elseif ($pdo instanceof PDO) {
+        $editId = (int) ($_POST['record_id'] ?? 0);
+        $editErrors = [];
+
+        $editName    = (string) ($_POST['edit_name'] ?? '');
+        $editEmail   = (string) ($_POST['edit_email'] ?? '');
+        $editMessage = (string) ($_POST['edit_message'] ?? '');
+
+        [$nameOk, $nameValue]       = validate_name($editName);
+        if (!$nameOk)  $editErrors['edit_name']    = $nameValue;
+
+        [$emailOk, $emailValue]     = validate_email($editEmail);
+        if (!$emailOk) $editErrors['edit_email']   = $emailValue;
+
+        [$msgOk, $msgValue]         = validate_message($editMessage);
+        if (!$msgOk)   $editErrors['edit_message'] = $msgValue;
+
+        if (empty($editErrors) && $editId > 0) {
+            try {
+                [$cipherText, $iv] = encrypt_message($msgValue);
+                $stmt = $pdo->prepare(
+                    'UPDATE submissions SET name = :name, email = :email,
+                     message_ciphertext = :cipher, message_iv = :iv
+                     WHERE id = :id'
+                );
+                $stmt->execute([
+                    ':name'   => $nameValue,
+                    ':email'  => $emailValue,
+                    ':cipher' => $cipherText,
+                    ':iv'     => $iv,
+                    ':id'     => $editId,
+                ]);
+                $successMessage = 'Registro #' . $editId . ' atualizado com sucesso.';
+            } catch (Throwable $e) {
+                $generalError = 'Erro ao atualizar registro: ' . $e->getMessage();
+            }
+        } else {
+            $errors = array_merge($errors, $editErrors);
+            // Pass back data to re-open modal
+            $editModalOpen = $editId;
+            $editModalData = [
+                'id'      => $editId,
+                'name'    => $editName,
+                'email'   => $editEmail,
+                'message' => $editMessage,
+            ];
+        }
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
     $old['name'] = (string) ($_POST['name'] ?? '');
     $old['email'] = (string) ($_POST['email'] ?? '');
     $old['password'] = (string) ($_POST['password'] ?? '');
@@ -91,7 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $generalError = 'Erro ao salvar no banco de dados: ' . $e->getMessage();
         }
     }
-}
+} // end main POST
 
 $history = [];
 if ($pdo instanceof PDO) {
@@ -413,8 +488,32 @@ $errorList = create_error_summary($errors);
                     <span><i class="fa-solid fa-calendar-days"></i> <?= e((string) $item['created_at']) ?></span>
                   </div>
                 </div>
-                <div class="record-id">
-                  <i class="fa-solid fa-hashtag"></i> <?= (int) $item['id'] ?>
+                <div class="record-actions">
+                  <button
+                    class="btn-action btn-edit"
+                    type="button"
+                    title="Editar registro"
+                    data-id="<?= (int) $item['id'] ?>"
+                    data-name="<?= e((string) $item['name']) ?>"
+                    data-email="<?= e((string) $item['email']) ?>"
+                    data-message="<?= e($plainMessage) ?>"
+                    onclick="openEditModal(this)"
+                  >
+                    <i class="fa-solid fa-pen"></i> Editar
+                  </button>
+                  <button
+                    class="btn-action btn-delete"
+                    type="button"
+                    title="Excluir registro"
+                    data-id="<?= (int) $item['id'] ?>"
+                    data-name="<?= e((string) $item['name']) ?>"
+                    onclick="openDeleteModal(this)"
+                  >
+                    <i class="fa-solid fa-trash"></i> Excluir
+                  </button>
+                  <div class="record-id">
+                    <i class="fa-solid fa-hashtag"></i> <?= (int) $item['id'] ?>
+                  </div>
                 </div>
               </div>
               <div class="message-box"><?= e($plainMessage) ?></div>
@@ -437,6 +536,124 @@ $errorList = create_error_summary($errors);
     <i class="fa-solid fa-user-pen"></i>
     <strong>João Alves &amp; Fabio</strong>
   </div>
+
+  <!-- ── DELETE CONFIRMATION MODAL ──────────────────────────────── -->
+  <div class="modal-overlay" id="deleteModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="deleteModalTitle">
+    <div class="modal-box">
+      <div class="modal-icon modal-icon--danger">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+      </div>
+      <h3 id="deleteModalTitle">Confirmar exclusão</h3>
+      <p class="modal-desc">Você está prestes a excluir o registro de <strong id="deleteModalName"></strong>. Esta ação <strong>não pode ser desfeita</strong>.</p>
+
+      <div class="modal-confirm-step" id="deleteStep1">
+        <p class="modal-step-label"><i class="fa-solid fa-circle-1"></i> Primeiro, confirme que deseja excluir:</p>
+        <div class="modal-btn-group">
+          <button class="btn-modal btn-modal--danger" type="button" onclick="deleteStep2()">
+            <i class="fa-solid fa-trash"></i> Sim, quero excluir
+          </button>
+          <button class="btn-modal btn-modal--ghost" type="button" onclick="closeDeleteModal()">
+            <i class="fa-solid fa-xmark"></i> Cancelar
+          </button>
+        </div>
+      </div>
+
+      <div class="modal-confirm-step hidden" id="deleteStep2">
+        <p class="modal-step-label modal-step-label--warn"><i class="fa-solid fa-circle-2"></i> Confirmação final — esta ação é irreversível:</p>
+        <form method="post" id="deleteForm">
+          <input type="hidden" name="csrf_token" value="<?= e($_SESSION['csrf_token'] ?? '') ?>">
+          <input type="hidden" name="action" value="delete">
+          <input type="hidden" name="record_id" id="deleteRecordId" value="">
+          <div class="modal-btn-group">
+            <button class="btn-modal btn-modal--confirm-delete" type="submit">
+              <i class="fa-solid fa-circle-check"></i> Confirmar exclusão definitiva
+            </button>
+            <button class="btn-modal btn-modal--ghost" type="button" onclick="closeDeleteModal()">
+              <i class="fa-solid fa-xmark"></i> Cancelar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── EDIT MODAL ───────────────────────────────────────────────── -->
+  <div class="modal-overlay" id="editModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
+    <div class="modal-box modal-box--wide">
+      <div class="modal-header">
+        <div class="modal-icon modal-icon--edit">
+          <i class="fa-solid fa-pen-to-square"></i>
+        </div>
+        <div>
+          <h3 id="editModalTitle">Editar registro</h3>
+          <p>Altere os campos abaixo e salve.</p>
+        </div>
+        <button class="modal-close" type="button" onclick="closeEditModal()" aria-label="Fechar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form method="post" id="editForm" class="form-grid" novalidate>
+        <input type="hidden" name="csrf_token" value="<?= e($_SESSION['csrf_token'] ?? '') ?>">
+        <input type="hidden" name="action" value="edit">
+        <input type="hidden" name="record_id" id="editRecordId" value="">
+
+        <div class="field">
+          <label for="edit_name"><i class="fa-solid fa-user"></i> Nome completo</label>
+          <input class="control" type="text" id="edit_name" name="edit_name"
+            maxlength="100" placeholder="Nome completo" autocomplete="off">
+          <div class="error" id="editNameError" data-error-for="edit_name">
+            <?= e($errors['edit_name'] ?? '') ?>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="edit_email"><i class="fa-solid fa-envelope"></i> E-mail</label>
+          <input class="control" type="email" id="edit_email" name="edit_email"
+            maxlength="255" placeholder="nome@dominio.com" autocomplete="off">
+          <div class="error" id="editEmailError" data-error-for="edit_email">
+            <?= e($errors['edit_email'] ?? '') ?>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="edit_message"><i class="fa-solid fa-message"></i> Mensagem</label>
+          <textarea class="control" id="edit_message" name="edit_message"
+            maxlength="250" placeholder="Mensagem (até 250 caracteres)"></textarea>
+          <div class="help">
+            <span id="editMessageCounter">0/250 caracteres</span>
+          </div>
+          <div class="error" id="editMessageError" data-error-for="edit_message">
+            <?= e($errors['edit_message'] ?? '') ?>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn" type="submit">
+            <span class="shine"></span>
+            <i class="fa-solid fa-floppy-disk"></i> Salvar alterações
+          </button>
+          <button class="ghost" type="button" onclick="closeEditModal()">
+            <i class="fa-solid fa-xmark"></i> Cancelar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <?php if ($editModalOpen > 0): ?>
+  <script>
+    // Re-open edit modal with error data from server
+    document.addEventListener('DOMContentLoaded', function() {
+      openEditModalWithData(
+        <?= (int) $editModalData['id'] ?>,
+        <?= json_encode($editModalData['name']) ?>,
+        <?= json_encode($editModalData['email']) ?>,
+        <?= json_encode($editModalData['message']) ?>
+      );
+    });
+  </script>
+  <?php endif; ?>
 
   <script src="assets/js/app.js"></script>
 </body>
